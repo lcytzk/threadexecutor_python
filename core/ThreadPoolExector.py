@@ -1,5 +1,6 @@
 import threading, Queue
 import logging
+from TPEException import *
 
 logger = logging.getLogger('ThreadExector')
 
@@ -32,15 +33,6 @@ class Executor(threading.Thread):
 
     def stop(self):
         self.closed = True
-
-class TPEException(Exception):
-    pass
-
-class TPEClosedException(ThreadExectorException):
-    pass
-
-class TPEMistypeException(ThreadExectorException):
-    pass
 
 class TPENoneException(ThreadExectorException):
     pass
