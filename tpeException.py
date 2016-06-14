@@ -1,4 +1,3 @@
-
 class TPEException(Exception):
     pass
 
@@ -7,3 +6,7 @@ class TPEClosedException(TPEException):
 
 class TPEMistypeException(TPEException):
     pass
+
+class TPENoneException(TPEException):
+    pass
+
