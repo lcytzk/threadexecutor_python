@@ -2,7 +2,7 @@ import threading, Queue
 import logging
 from TPEException import *
 
-logger = logging.getLogger('ThreadExector')
+logger = logging.getLogger('ThreadPoolExector')
 
 class ExectorTask(object):
 
