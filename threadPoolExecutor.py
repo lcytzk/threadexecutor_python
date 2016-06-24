@@ -1,13 +1,20 @@
 import threading, Queue
 import logging
+from abc import ABCMeta, abstractmethod
 from tpeException import *
 
-logger = logging.getLogger()
+logging.basicConfig()
+logger = logging.getLogger('ThreadPool')
+logger.setLevel(logging.INFO)
 
-class ExecutorTask(object):
+'''
+    Abstract executor task.
+'''
+class ExecutorTask:
+    __metaclass__ = ABCMeta
 
-    def run(self):
-        pass
+    @abstractmethod
+    def run(self): pass
 
 class Executor(threading.Thread):
 
@@ -22,6 +29,11 @@ class Executor(threading.Thread):
 
     def run(self):
         self.getNextTask()
+        '''
+            There are two situations which will exit this executor.
+                1. When executor has been closed.
+                2. When there is no task in queue
+        '''
         while not self.closed and self.task != None:
             try:
                 self.task.run()
@@ -31,7 +43,8 @@ class Executor(threading.Thread):
         self.finish()
 
     def finish(self):
-        logger.info('A executor finished and ready to exit')
+        self.threadPool.finish(self)
+        logger.info('A executor finished and ready to exit, work number is %d', self.NO)
 
     def getNextTask(self):
         self.task = self.threadPool.getNextTask()
@@ -53,32 +66,45 @@ class ThreadPoolExecutor(object):
         self.forceClosed = False
         self.timeout = timeout
         self.executorLock = threading.Lock()
+        self.workerNumber = 0
 
+    '''
+        Submit a task, return True if success, raise an exception otherwise.
+    '''
     def submit(self, task):
         if self.closed:
-            logger.info("Thread exector has been closed.")
+            logger.info("Thread executor has been closed.")
             raise TPEClosedException()
         if task == None:
             raise TPENoneException()
         if not isinstance(task, ExecutorTask):
             raise TPEMistypeException()
-        self.accept(task)
+        self.__accept(task)
         return True
 
-    def accept(self, task):
+    def __accept(self, task):
+        # Here can be optimized, if the number of executors are less than maximum,
+        # the new task can be executed immediately.
         self.taskQueue.put(task)
         if len(self.executors) < self.executorNum:
             self.tryCreateNewExecutor()
 
     def tryCreateNewExecutor(self):
-        self.executorLock.acquire()
-        workNO = len(self.executors)
-        if workNO < self.executorNum:
-            executor = Executor(self, workNO)
-            self.executors.add(executor)
-            executor.start()
-        self.executorLock.release()
+        try:
+            self.executorLock.acquire()
+            if len(self.executors) < self.executorNum:
+                executor = Executor(self, self.workerNumber)
+                self.workerNumber += 1
+                self.executors.add(executor)
+                executor.start()
+        finally:
+            self.executorLock.release()
 
+    '''
+        If thread pool has been force stop, get next task will return None immediately,
+        otherwise, return a task.
+        If queue is empty and after timeout, it will return None.
+    '''
     def getNextTask(self):
         if self.forceClosed:
             return None
@@ -87,16 +113,36 @@ class ThreadPoolExecutor(object):
         except:
             return None
 
+    '''
+        When thread pool has been force stop, running tasks will be executed properly,
+        but tasks waiting in queue will be abandoned.
+
+        Persisting method can be added if necessary.
+    '''
     def forceStop(self):
         self.fourceClosed = True
         self.stop()
 
+    '''
+        When thread pool has been stop, it will no more receive new tasks,
+        remaining tasks will be executed then thread pool will exit.
+    '''
     def stop(self):
         self.closed = True
         for executor in self.executors:
             executor.stop()
 
+    '''
+        Wait until all executor exit.
+    '''
     def wait(self):
         logger.info('Waiting for all task to finish.')
-        for executor in self.executors:
+        for executor in list(self.executors):
             executor.join()
+        logger.info("All tasks have finished.")
+
+    def finish(self, task):
+        try:
+            self.executors.remove(task)
+        except:
+            logger.warn("No NO:%d exist." % task.NO)

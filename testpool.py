@@ -15,10 +15,10 @@ class MyTask(ExecutorTask):
 def test():
     threadpool = ThreadPoolExecutor(timeout=1)
     for i in range(1000):
-        threadpool.submit(MyTask('Task %d' % i))
+        threadpool.submit(MyTask('Running task %d' % i))
+        if i == 500:
+            time.sleep(5)
     threadpool.wait()
-
-
 
 if __name__ == '__main__':
     test()
